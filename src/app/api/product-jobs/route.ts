@@ -1,136 +1,126 @@
 import { NextResponse } from "next/server";
 import { executeReadQuery } from "@/lib/neo4j";
 
+// Helper to convert Neo4j integers to regular values
+const toValue = (val: unknown): string => {
+  if (val === null || val === undefined) return "";
+  // Neo4j integers come as {low, high} objects
+  if (typeof val === 'object' && val !== null && 'low' in val) {
+    return String((val as { low: number; high: number }).low);
+  }
+  if (typeof val === 'bigint') return String(val);
+  return String(val);
+};
+
 // Interface for Product Job data from Neo4j
 interface ProductJobData {
   name: string;
-  category: string;
   statement: string | null;
   description: string | null;
+  category: string | null;
+  level: unknown;
+  use_context: string | null;
+  user_group: string | null;
+  frequency: string | null;
 }
 
-// Job category definitions with descriptions
-const CATEGORY_INFO: Record<string, { bullets: string[] }> = {
-  "Acquisition": {
-    bullets: [
-      "How customers find, evaluate, and obtain the product",
-      "Research options, compare alternatives, evaluate fit",
-      "Make purchase decision, complete transaction",
-      "Receive, verify, register, activate"
-    ]
-  },
-  "Preparation": {
-    bullets: [
-      "How customers ready the product for use",
-      "Unbox, assemble, install, configure",
-      "Connect, calibrate, personalize",
-      "Learn to use, train others"
-    ]
-  },
-  "Usage": {
-    bullets: [
-      "How customers employ the product for its core function",
-      "Operate, execute core functions",
-      "Monitor, adjust during use",
-      "Apply across different contexts"
-    ]
-  },
-  "Maintenance": {
-    bullets: [
-      "How customers keep the product working",
-      "Clean, service, inspect",
-      "Update, upgrade, repair",
-      "Store, protect, optimize"
-    ]
-  },
-  "Disposal": {
-    bullets: [
-      "How customers end the product lifecycle",
-      "Decommission, backup data, transfer ownership",
-      "Recycle, donate, return",
-      "Document, archive, replace"
-    ]
-  }
-};
+// Product Job categories (the 5 classifications)
+const PRODUCT_JOB_CATEGORIES = [
+  "Acquisition",
+  "Preparation", 
+  "Usage",
+  "Maintenance",
+  "Disposal"
+];
 
-// API route to fetch product jobs from Neo4j
-// Returns jobs for a specific UNSPSC commodity (e.g., Filling machinery)
+// API route to fetch Product Jobs for a commodity grouped by category
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const commodityId = searchParams.get("commodityId") || "23181501"; // Default to Filling machinery
-    const category = searchParams.get("category");
+    const commodityId = searchParams.get("commodityId");
 
-    let query = "";
-    const params: Record<string, string> = { commodityId };
-
-    if (category) {
-      // Get jobs for a specific category
-      query = `
-        MATCH (j:JTBDProductJob)
-        WHERE j.commodity_id = $commodityId AND j.category = $category
-        RETURN j.name as name, j.category as category, j.statement as statement, j.description as description
-        ORDER BY j.name
-      `;
-      params.category = category;
-    } else {
-      // Get all jobs grouped by category
-      query = `
-        MATCH (j:JTBDProductJob)
-        WHERE j.commodity_id = $commodityId
-        RETURN j.name as name, j.category as category, j.statement as statement, j.description as description
-        ORDER BY j.category, j.name
-      `;
+    if (!commodityId) {
+      return NextResponse.json(
+        { error: "commodityId is required" },
+        { status: 400 }
+      );
     }
 
-    const results = await executeReadQuery<ProductJobData>(query, params);
+    console.log("Fetching product jobs for commodity:", commodityId);
 
-    // Group jobs by category and add category info
-    const jobsByCategory: Record<string, { 
-      name: string; 
-      bullets: string[];
-      jobs: Array<{ name: string; statement: string; description: string }>;
-      count: number;
-    }> = {};
+    let productJobs: ProductJobData[] = [];
 
-    // Initialize categories with info
-    for (const [categoryName, info] of Object.entries(CATEGORY_INFO)) {
-      jobsByCategory[categoryName] = {
-        name: categoryName,
-        bullets: info.bullets,
-        jobs: [],
-        count: 0
-      };
+    // Fetch Product Jobs for this commodity
+    try {
+      const jobsQuery = `
+        MATCH (c:UNSPSCCommodity {commodity_id: $commodityId})-[:HAS_PRODUCT_JOB]->(pj:JTBDProductJob)
+        RETURN pj.name as name, pj.statement as statement, pj.description as description,
+               pj.category as category, pj.level as level, pj.use_context as use_context,
+               pj.user_group as user_group, pj.frequency as frequency
+        ORDER BY pj.category, pj.name
+      `;
+      productJobs = await executeReadQuery<ProductJobData>(jobsQuery, { commodityId });
+      console.log(`Found ${productJobs.length} product jobs`);
+    } catch (err) {
+      console.error("Error fetching product jobs:", err);
     }
 
-    // Populate with actual jobs
-    for (const job of results) {
-      const cat = job.category;
-      if (jobsByCategory[cat]) {
-        jobsByCategory[cat].jobs.push({
-          name: job.name,
-          statement: job.statement || "",
-          description: job.description || ""
-        });
-        jobsByCategory[cat].count++;
+    // Group jobs by category
+    const jobsByCategory: Record<string, Array<{
+      name: string;
+      statement: string;
+      description: string;
+      level: string;
+      useContext: string;
+      userGroup: string;
+      frequency: string;
+    }>> = {};
+
+    // Initialize all categories
+    for (const cat of PRODUCT_JOB_CATEGORIES) {
+      jobsByCategory[cat] = [];
+    }
+
+    // Group the jobs
+    for (const job of productJobs) {
+      const category = job.category || "Usage";
+      if (!jobsByCategory[category]) {
+        jobsByCategory[category] = [];
       }
+      jobsByCategory[category].push({
+        name: job.name,
+        statement: job.statement || "",
+        description: job.description || "",
+        level: toValue(job.level),
+        useContext: job.use_context || "",
+        userGroup: job.user_group || "",
+        frequency: job.frequency || "",
+      });
     }
 
-    // Convert to array and return
-    const categories = Object.values(jobsByCategory);
+    // Count jobs per category
+    const categoryCounts: Record<string, number> = {};
+    for (const cat of PRODUCT_JOB_CATEGORIES) {
+      categoryCounts[cat] = jobsByCategory[cat]?.length || 0;
+    }
 
-    return NextResponse.json({ 
-      categories,
-      totalJobs: results.length 
+    return NextResponse.json({
+      jobsByCategory,
+      categoryCounts,
+      totalJobs: productJobs.length,
+      categories: PRODUCT_JOB_CATEGORIES,
     });
   } catch (error) {
     console.error("Error fetching product jobs:", error);
     return NextResponse.json(
-      { error: "Failed to fetch product jobs", categories: [] },
+      { 
+        error: "Failed to fetch product jobs",
+        jobsByCategory: {},
+        categoryCounts: {},
+        totalJobs: 0,
+        categories: PRODUCT_JOB_CATEGORIES,
+      },
       { status: 500 }
     );
   }
 }
-
-
-

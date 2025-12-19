@@ -99,7 +99,15 @@ export default function RestrictionsPage() {
     product.name.toLowerCase().includes(productSearch.toLowerCase())
   );
 
-  // Group constraints by category
+  // Severity order for sorting (Critical first, then High, then Medium, then Low)
+  const SEVERITY_ORDER: Record<string, number> = {
+    "CRITICAL": 1,
+    "HIGH": 2,
+    "MEDIUM": 3,
+    "LOW": 4,
+  };
+
+  // Group constraints by category and sort by severity within each category
   const constraintsByCategory = constraints.reduce((acc, constraint) => {
     if (!acc[constraint.category]) {
       acc[constraint.category] = [];
@@ -107,6 +115,15 @@ export default function RestrictionsPage() {
     acc[constraint.category].push(constraint);
     return acc;
   }, {} as Record<ConstraintCategory, ProductConstraint[]>);
+  
+  // Sort each category by severity
+  Object.keys(constraintsByCategory).forEach((category) => {
+    constraintsByCategory[category as ConstraintCategory].sort((a, b) => {
+      const severityA = SEVERITY_ORDER[a.sensitivity?.toUpperCase() || "MEDIUM"] || 99;
+      const severityB = SEVERITY_ORDER[b.sensitivity?.toUpperCase() || "MEDIUM"] || 99;
+      return severityA - severityB;
+    });
+  });
 
   // Category tabs with counts
   const categoryTabs = Object.entries(CONSTRAINT_CATEGORIES).map(([key, value]) => ({

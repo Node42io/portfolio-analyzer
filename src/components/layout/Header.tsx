@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { NavigationItem } from "@/types/market";
@@ -103,16 +104,18 @@ export function Header({
   );
 }
 
-// Logo component with node42 branding
+// Logo component with node42 branding using company logo image
 function Logo() {
   return (
-    <div className="flex items-center gap-1.5">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="#fdff98" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M2 17L12 22L22 17" stroke="#fdff98" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M2 12L12 17L22 12" stroke="#fdff98" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-      </svg>
-      <span className="text-lg font-semibold text-white tracking-tight">node42</span>
+    <div className="relative h-8 w-[140px]">
+      <Image 
+        src="/image.png" 
+        alt="node42" 
+        fill
+        sizes="140px"
+        className="object-contain"
+        priority
+      />
     </div>
   );
 }

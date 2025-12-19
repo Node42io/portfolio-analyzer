@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Header } from "@/components/layout";
@@ -9,7 +9,7 @@ import { navigationItems } from "@/lib/constants";
 import { Product } from "@/types/customer";
 import { 
   ArrowLeft, Store, ArrowLeftRight, ChevronDown, 
-  Mic, Loader2, LayoutGrid
+  Mic, Loader2, LayoutGrid, Target
 } from "lucide-react";
 
 // Map customer IDs to display names
@@ -19,19 +19,53 @@ const customerNames: Record<string, string> = {
   "bechtel": "Privatmolkerei Bechtel",
 };
 
-// Job category with associated jobs
-interface JobCategory {
+// Step with error statements (market needs)
+interface JobStep {
+  order: number;
   name: string;
-  bullets: string[];
-  jobs: Array<{ name: string; statement: string; description: string }>;
-  count: number;
+  description: string;
+  errorStatements: Array<{
+    statement: string;
+    category: string;
+    impact: string;
+    kpiName: string;
+    kpiUnit: string;
+    relatedCoreJobs?: string[];
+  }>;
+  needsCount: number;
 }
 
-// Market Needs page - displays product-specific jobs categorized by lifecycle stage
+// Product Job interface
+interface ProductJob {
+  name: string;
+  statement: string;
+  description: string;
+  level: string;
+  useContext: string;
+  userGroup: string;
+  frequency: string;
+}
+
+// Core Job interface
+interface CoreJob {
+  name: string;
+  statement: string;
+  description: string;
+  errorStatements: Array<{
+    statement: string;
+    category: string;
+    kpiName: string;
+    kpiUnit: string;
+  }>;
+}
+
+// Market Needs page - displays job map steps with error statements as market needs
 export default function MarketNeedsPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  
   const customerId = params.id as string;
   const customerName = customerNames[customerId] || customerId;
   
@@ -41,20 +75,30 @@ export default function MarketNeedsPage() {
   const commodityName = searchParams.get("commodityName") || "";
   const initialProduct = searchParams.get("product") || "";
 
-  const [categories, setCategories] = useState<JobCategory[]>([]);
+  const [steps, setSteps] = useState<JobStep[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState("needs");
-  const [activeTab, setActiveTab] = useState<"universal" | "product">("product");
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"job-steps" | "product-specific" | "core-market">("job-steps");
+  const [selectedStepOrder, setSelectedStepOrder] = useState<number | null>(1); // Default to first step
+  const [coreFunctionalJob, setCoreFunctionalJob] = useState("");
+  
+  // Product Jobs state
+  const [productJobs, setProductJobs] = useState<Record<string, ProductJob[]>>({});
+  const [productJobCategories] = useState(["Acquisition", "Preparation", "Usage", "Maintenance", "Disposal"]);
+  const [selectedProductCategory, setSelectedProductCategory] = useState<string>("Usage");
+  const [productJobsLoading, setProductJobsLoading] = useState(true);
+  
+  // Core Jobs state
+  const [coreJobs, setCoreJobs] = useState<Record<string, CoreJob[]>>({});
+  const [coreJobCategories] = useState(["Control", "Process", "Efficiency", "Problem-Solving"]);
+  const [selectedCoreCategory, setSelectedCoreCategory] = useState<string>("Control");
+  const [coreJobsLoading, setCoreJobsLoading] = useState(true);
   
   // Product selection
   const [selectedProduct, setSelectedProduct] = useState<string>(initialProduct);
   const [productDropdownOpen, setProductDropdownOpen] = useState(false);
   const [productSearch, setProductSearch] = useState("");
-
-  // Core functional job (mock - would come from API)
-  const coreJob = "Enable accurate and efficient filling operations with minimal product waste and maximum uptime";
 
   // Fetch products filtered by commodity on mount
   useEffect(() => {
@@ -73,19 +117,42 @@ export default function MarketNeedsPage() {
     fetchProducts();
   }, [commodityId]);
 
-  // Fetch product jobs
+  // Fetch job steps with error statements
+  useEffect(() => {
+    async function fetchJobSteps() {
+      try {
+        const response = await fetch(`/api/core-jobs?marketName=${encodeURIComponent(marketName)}&commodityId=${commodityId}`);
+        if (response.ok) {
+          const data = await response.json();
+          setSteps(data.steps || []);
+          setCoreFunctionalJob(data.coreFunctionalJob || "");
+          // Also set core jobs from this response
+          setCoreJobs(data.coreJobs || {});
+          setCoreJobsLoading(false);
+        }
+      } catch (err) {
+        console.error("Error fetching job steps:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchJobSteps();
+  }, [marketName, commodityId]);
+
+  // Fetch product jobs for this commodity
   useEffect(() => {
     async function fetchProductJobs() {
+      if (!commodityId) return;
       try {
         const response = await fetch(`/api/product-jobs?commodityId=${commodityId}`);
         if (response.ok) {
           const data = await response.json();
-          setCategories(data.categories || []);
+          setProductJobs(data.jobsByCategory || {});
         }
       } catch (err) {
         console.error("Error fetching product jobs:", err);
       } finally {
-        setLoading(false);
+        setProductJobsLoading(false);
       }
     }
     fetchProductJobs();
@@ -96,8 +163,11 @@ export default function MarketNeedsPage() {
     product.name.toLowerCase().includes(productSearch.toLowerCase())
   );
 
-  // Get selected category data
-  const selectedCategoryData = categories.find(c => c.name === selectedCategory);
+  // Get selected step data
+  const selectedStep = steps.find(s => s.order === selectedStepOrder);
+  
+  // Calculate total needs count
+  const totalNeedsCount = steps.reduce((sum, step) => sum + step.needsCount, 0);
 
   // View switcher tabs
   const viewTabs = [
@@ -150,7 +220,7 @@ export default function MarketNeedsPage() {
           <div className="flex items-end justify-between pb-4 border-b-2 border-[#262b33]">
             {/* Market and Product Display */}
             <div className="flex items-center gap-2">
-              {/* Market Display - Fixed */}
+              {/* Market Display */}
               <div className="flex flex-col gap-2">
                 <span className="text-[16px] font-mono text-[#7b7a79] uppercase pl-1">Market</span>
                 <div className="flex items-center gap-2 px-3 py-2 bg-[#bfbdb9] rounded-2xl">
@@ -233,171 +303,446 @@ export default function MarketNeedsPage() {
           </div>
         </div>
 
-        {/* Content Section */}
-        <div className="flex flex-col gap-4 mb-8">
-          <div className="flex gap-4">
-            {/* Left Section - Title and Description */}
-            <div className="flex flex-col gap-4 w-[612px]">
-              <h2 className="text-[24px] font-medium text-[#f3f1eb]">Market Needs</h2>
+        {/* Content Section - Title, Description, Core Job */}
+        <div className="flex gap-4 mb-4">
+          {/* Left Section - Title and Description */}
+          <div className="flex flex-col gap-4 w-[612px]">
+            <h2 className="text-[24px] font-medium text-[#f3f1eb]">Market Needs</h2>
+            <p className="text-[16px] text-[#f3f1eb]">
+              Market needs represent imperfections in the job map - things that can go wrong when customers try to accomplish their goals.
+            </p>
+          </div>
+
+          {/* Right Section - Core Functional Job */}
+          <div className="flex-1 bg-[#1b1e23] rounded-lg p-4">
+            <div className="flex flex-col gap-3">
+              <span className="text-[16px] font-mono text-[#7b7a79] uppercase">Core Functional Job</span>
               <p className="text-[16px] text-[#f3f1eb]">
-                Market needs are specific to the product lifecycle. Each category represents a different phase of customer interaction with the product.
+                {coreFunctionalJob || "Enable accurate and efficient operations with minimal waste and maximum uptime"}
               </p>
             </div>
-
-            {/* Right Section - Core Functional Job */}
-            <div className="flex-1 bg-[#1b1e23] rounded-lg p-4">
-              <div className="flex flex-col gap-3">
-                <span className="text-[16px] font-mono text-[#7b7a79] uppercase">Core Functional Job</span>
-                <p className="text-[16px] text-[#f3f1eb]">{coreJob}</p>
-              </div>
-            </div>
           </div>
-
-          {/* Needs Type Tabs */}
-          <div className="flex h-[42px]">
-            <button
-              onClick={() => setActiveTab("universal")}
-              className={`px-4 flex items-center justify-center border-b transition-colors ${
-                activeTab === "universal"
-                  ? "border-b-2 border-[#fdff98] text-[#fdff98]"
-                  : "border-b border-[#4f5358] text-[#f3f1eb]"
-              }`}
-            >
-              <span className="text-[20px] font-medium">Universal Market Needs</span>
-            </button>
-            <button
-              onClick={() => setActiveTab("product")}
-              className={`px-4 flex items-center justify-center border-b transition-colors ${
-                activeTab === "product"
-                  ? "border-b-2 border-[#fdff98] text-[#fdff98]"
-                  : "border-b border-[#4f5358] text-[#f3f1eb]"
-              }`}
-            >
-              <span className="text-[20px] font-medium">Product Specific Needs</span>
-            </button>
-          </div>
-
-          {activeTab === "product" && (
-            <p className="text-[16px] text-white">Specific to the Product solution</p>
-          )}
         </div>
 
-        {/* Category Cards */}
-        {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-8 h-8 text-[#fdff98] animate-spin" />
-          </div>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {/* Category Grid - 5 cards in a row */}
-            <div className="flex gap-2">
-              {categories.map((category) => (
-                <CategoryCard
-                  key={category.name}
-                  category={category}
-                  isSelected={selectedCategory === category.name}
-                  onClick={() => setSelectedCategory(
-                    selectedCategory === category.name ? null : category.name
-                  )}
-                />
-              ))}
-            </div>
+        {/* Needs Type Tabs - Job Steps, Product Specific Needs, Core Market Needs */}
+        <div className="flex border-b border-[#262b33] mb-4">
+          <button
+            onClick={() => setActiveTab("job-steps")}
+            className={`px-4 h-[42px] flex items-center justify-center transition-colors ${
+              activeTab === "job-steps"
+                ? "border-b-2 border-[#fdff98] text-[#fdff98]"
+                : "border-b border-[#4f5358] text-[#f3f1eb]"
+            }`}
+          >
+            <span className="text-[20px] font-medium">Job Steps</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("product-specific")}
+            className={`px-4 h-[42px] flex items-center justify-center transition-colors ${
+              activeTab === "product-specific"
+                ? "border-b-2 border-[#fdff98] text-[#fdff98]"
+                : "border-b border-[#4f5358] text-[#f3f1eb]"
+            }`}
+          >
+            <span className="text-[20px] font-medium">Product Specific Needs</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("core-market")}
+            className={`px-4 h-[42px] flex items-center justify-center transition-colors ${
+              activeTab === "core-market"
+                ? "border-b-2 border-[#fdff98] text-[#fdff98]"
+                : "border-b border-[#4f5358] text-[#f3f1eb]"
+            }`}
+          >
+            <span className="text-[20px] font-medium">Core Market Needs</span>
+          </button>
+        </div>
 
-            {/* Expanded Category Section */}
-            {selectedCategory && selectedCategoryData && (
-              <div className="bg-[#1f2329] rounded-xl p-4 flex flex-col gap-6">
-                <h3 className="text-[20px] font-medium text-[#fdff98]">
-                  {selectedCategoryData.name}
-                </h3>
+        {/* Subtitle */}
+        <p className="text-[16px] text-white mb-8">Independent of Specific Product Solutions</p>
+
+        {/* TAB CONTENT - Job Steps */}
+        {activeTab === "job-steps" && (
+          loading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="w-8 h-8 text-[#fdff98] animate-spin" />
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {/* Step Number Line with connecting lines */}
+              <div className="flex items-center gap-0 overflow-x-auto pb-2" ref={scrollContainerRef}>
+                {/* Leading line */}
+                <div className="w-[86px] h-[1px] bg-[#4f5358] shrink-0" />
                 
-                {/* Job Cards Grid - show up to 5 per row */}
-                <div className="flex gap-4 flex-wrap">
-                  {selectedCategoryData.jobs.slice(0, 6).map((job, index) => (
-                    <MarketNeedCard key={index} job={job} />
+                {steps.map((step, index) => (
+                  <div key={step.order} className="flex items-center shrink-0">
+                    {/* Step Number Badge */}
+                    <button
+                      onClick={() => setSelectedStepOrder(selectedStepOrder === step.order ? null : step.order)}
+                      className={`w-[44px] h-[32px] flex items-center justify-center rounded-full font-mono text-[16px] transition-colors ${
+                        selectedStepOrder === step.order
+                          ? "bg-[#fdff98] text-[#262b33]"
+                          : "bg-[#262b33] text-white hover:bg-[#3c465a]"
+                      }`}
+                    >
+                      {step.order}
+                    </button>
+                    
+                    {/* Connecting line (not after last step) */}
+                    {index < steps.length - 1 && (
+                      <div className="w-[181px] h-[1px] bg-[#4f5358]" />
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Step Cards Row */}
+              <div className="flex gap-2 overflow-x-auto pb-4">
+                {steps.map((step) => (
+                  <StepCard
+                    key={step.order}
+                    step={step}
+                    isSelected={selectedStepOrder === step.order}
+                    onClick={() => setSelectedStepOrder(selectedStepOrder === step.order ? null : step.order)}
+                  />
+                ))}
+              </div>
+
+              {/* Selected Step Header with Needs Count */}
+              {selectedStep && (
+                <div className="flex items-center gap-4 mt-4">
+                  {/* Step Badge and Title */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-[44px] h-[32px] flex items-center justify-center rounded-full bg-[#262b33] font-mono text-[16px] text-white">
+                      {selectedStep.order}
+                    </div>
+                    <span className="text-[20px] font-medium text-[#f3f1eb]">{selectedStep.name}</span>
+                  </div>
+                  
+                  {/* Market Needs Count */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[16px] font-mono text-[#8a8f98] uppercase">Error Statements</span>
+                    <span className="px-2 py-1 bg-[#3c465a] rounded-full text-[14px] font-mono text-[#fdff98]">
+                      {selectedStep.needsCount}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Expanded Market Needs Section */}
+              {selectedStep && selectedStep.errorStatements.length > 0 && (
+                <div className="flex flex-col gap-4 mt-2">
+                  {selectedStep.errorStatements.map((error, index) => (
+                    <MarketNeedCard key={index} error={error} />
                   ))}
                 </div>
-                
-                {selectedCategoryData.jobs.length > 6 && (
-                  <p className="text-[14px] text-[#7b7a79]">
-                    And {selectedCategoryData.jobs.length - 6} more needs...
+              )}
+
+              {/* Empty state when step selected but no needs */}
+              {selectedStep && selectedStep.errorStatements.length === 0 && (
+                <div className="bg-[#1f2329] rounded-lg p-6 mt-2">
+                  <p className="text-[16px] text-[#7b7a79]">
+                    No error statements identified for this step yet.
                   </p>
+                </div>
+              )}
+            </div>
+          )
+        )}
+
+        {/* TAB CONTENT - Product Specific Needs */}
+        {activeTab === "product-specific" && (
+          productJobsLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="w-8 h-8 text-[#fdff98] animate-spin" />
+            </div>
+          ) : (
+            <div className="flex flex-col gap-6">
+              {/* Category Pills */}
+              <div className="flex gap-2 flex-wrap">
+                {productJobCategories.map((category) => (
+                  <button
+                    key={category}
+                    onClick={() => setSelectedProductCategory(category)}
+                    className={`px-4 py-2 rounded-full text-[14px] font-mono transition-colors ${
+                      selectedProductCategory === category
+                        ? "bg-[#fdff98] text-[#262b33]"
+                        : "bg-[#262b33] text-[#f3f1eb] hover:bg-[#3c465a]"
+                    }`}
+                  >
+                    {category}
+                    <span className="ml-2 text-[12px] opacity-70">
+                      ({productJobs[category]?.length || 0})
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Product Jobs List */}
+              <div className="flex flex-col gap-4">
+                {(productJobs[selectedProductCategory] || []).length === 0 ? (
+                  <div className="bg-[#1f2329] rounded-lg p-6">
+                    <p className="text-[16px] text-[#7b7a79]">
+                      No product jobs found for {selectedProductCategory}.
+                    </p>
+                  </div>
+                ) : (
+                  (productJobs[selectedProductCategory] || []).map((job, index) => (
+                    <ProductJobCard key={index} job={job} />
+                  ))
                 )}
               </div>
-            )}
-          </div>
+            </div>
+          )
+        )}
+
+        {/* TAB CONTENT - Core Market Needs */}
+        {activeTab === "core-market" && (
+          coreJobsLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="w-8 h-8 text-[#fdff98] animate-spin" />
+            </div>
+          ) : (
+            <div className="flex flex-col gap-6">
+              {/* Category Pills */}
+              <div className="flex gap-2 flex-wrap">
+                {coreJobCategories.map((category) => (
+                  <button
+                    key={category}
+                    onClick={() => setSelectedCoreCategory(category)}
+                    className={`px-4 py-2 rounded-full text-[14px] font-mono transition-colors ${
+                      selectedCoreCategory === category
+                        ? "bg-[#fdff98] text-[#262b33]"
+                        : "bg-[#262b33] text-[#f3f1eb] hover:bg-[#3c465a]"
+                    }`}
+                  >
+                    {category}
+                    <span className="ml-2 text-[12px] opacity-70">
+                      ({coreJobs[category]?.length || 0})
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Core Jobs List */}
+              <div className="flex flex-col gap-4">
+                {(coreJobs[selectedCoreCategory] || []).length === 0 ? (
+                  <div className="bg-[#1f2329] rounded-lg p-6">
+                    <p className="text-[16px] text-[#7b7a79]">
+                      No core jobs found for {selectedCoreCategory}.
+                    </p>
+                  </div>
+                ) : (
+                  (coreJobs[selectedCoreCategory] || []).map((job, index) => (
+                    <CoreJobCard key={index} job={job} />
+                  ))
+                )}
+              </div>
+            </div>
+          )
         )}
       </main>
     </div>
   );
 }
 
-// Category card component - matches Figma design exactly
-function CategoryCard({ 
-  category, 
+// Step Card component - matches Figma design with title, description, and needs count
+function StepCard({ 
+  step, 
   isSelected,
   onClick 
 }: { 
-  category: JobCategory; 
+  step: JobStep; 
   isSelected: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       onClick={onClick}
-      className={`flex-1 flex flex-col justify-between h-[239px] px-3 py-4 rounded-lg transition-all ${
+      className={`w-[239px] h-[211px] flex flex-col justify-between px-3 py-4 rounded-lg transition-all shrink-0 ${
         isSelected 
           ? "bg-[#1f2329] border border-[#fdff98]" 
           : "bg-[#1f2329] border border-transparent hover:border-[#262b33]"
       }`}
     >
-      {/* Top Section - Title and Bullets */}
+      {/* Top Section - Title and Description */}
       <div className="flex flex-col gap-4 pb-4 border-b border-[#262b33]">
-        <h3 className="text-[20px] font-medium text-[#f3f1eb] text-left">{category.name}</h3>
-        <ul className="text-[14px] text-[#f3f1eb] list-disc list-inside text-left leading-relaxed">
-          {category.bullets.map((bullet, index) => (
-            <li key={index} className="mb-0.5">{bullet}</li>
-          ))}
-        </ul>
+        <h3 className="text-[20px] font-medium text-[#f3f1eb] text-left">{step.name}</h3>
+        <p className="text-[14px] text-[#f3f1eb] text-left leading-relaxed line-clamp-4">
+          {step.description}
+        </p>
       </div>
 
       {/* Bottom Section - Market Needs count */}
-      <div className="flex items-center gap-2">
-        <span className="text-[20px] text-[#7b7a79]">Market Needs</span>
-        <span className="px-2 py-1 bg-[#4f5358] rounded-full text-[14px] font-mono text-[#fdff98]">
-          {category.count}
+      <div className="flex items-center gap-2 pt-2">
+        <span className="text-[16px] font-mono text-[#8a8f98] uppercase">Market Needs</span>
+        <span className="px-2 py-1 bg-[#3c465a] rounded-full text-[14px] font-mono text-[#fdff98]">
+          {step.needsCount}
         </span>
       </div>
     </button>
   );
 }
 
-// Market Need Card component - matches Figma design exactly
-function MarketNeedCard({ job }: { job: { name: string; statement: string; description: string } }) {
-  // Truncate description for display
-  const truncatedDesc = job.statement 
-    ? (job.statement.length > 100 ? job.statement.substring(0, 100) + "..." : job.statement)
-    : (job.description?.length > 100 ? job.description.substring(0, 100) + "..." : job.description || "");
-
+// Market Need Card component - displays error statement with KPI
+function MarketNeedCard({ 
+  error 
+}: { 
+  error: { 
+    statement: string; 
+    category: string; 
+    impact: string; 
+    kpiName: string; 
+    kpiUnit: string; 
+    relatedCoreJobs?: string[];
+  } 
+}) {
   return (
-    <div className="w-[265px] bg-[#181a1e] rounded-lg p-2">
-      <div className="flex flex-col gap-4 h-[150px]">
-        {/* Header Section */}
-        <div className="flex flex-col gap-2">
-          <span className="text-[12px] font-mono text-[#7b7a79] uppercase">Market Need</span>
-          <p className="text-[16px] text-[#f3f1eb]">{job.name}</p>
-          <p className="text-[12px] text-[#b8b6b1] leading-normal">
-            {truncatedDesc}
-          </p>
+    <div className="w-full bg-[#1f2329] rounded-lg px-3 py-4 flex gap-8">
+      {/* Left Section - Category and Statement */}
+      <div className="flex flex-col gap-4 flex-1 max-w-[714px]">
+        <div className="flex items-center gap-3">
+          <span className="px-2 py-1 bg-[#3c465a] rounded text-[12px] font-mono text-[#fdff98] uppercase">
+            {error.category || "General"}
+          </span>
         </div>
-        
-        {/* KPI Section - Separator and details */}
-        <div className="pt-3 border-t border-[#2a2f38] mt-auto">
-          <span className="text-[12px] font-mono text-[#7b7a79] uppercase">KPI: Performance</span>
-          <p className="text-[14px] text-[#f3f1eb] mt-1">
-            Unit: metric
-          </p>
+        <p className="text-[16px] text-[#f3f1eb] leading-relaxed">
+          {error.statement}
+        </p>
+        {/* Related Core Jobs */}
+        {error.relatedCoreJobs && error.relatedCoreJobs.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-2">
+            <span className="text-[12px] font-mono text-[#7b7a79] uppercase">Impacts:</span>
+            {error.relatedCoreJobs.map((job, index) => (
+              <span key={index} className="text-[12px] text-[#bfbdb9] bg-[#262b33] px-2 py-1 rounded">
+                {job}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Right Section - KPI */}
+      <div className="flex items-start gap-8 shrink-0">
+        <div className="flex items-center gap-2">
+          <Target className="w-4 h-4 text-[#7b7a79]" />
+          <span className="text-[16px] font-mono text-[#7b7a79] uppercase">KPI</span>
+        </div>
+        <div className="flex flex-col gap-2 min-w-[200px]">
+          <span className="text-[16px] font-medium text-[#f3f1eb]">
+            {error.kpiName || "—"}
+          </span>
+          <span className="text-[14px] text-[#8a8f98]">
+            {error.kpiUnit || "—"}
+          </span>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Product Job Card component - displays product job details
+function ProductJobCard({ job }: { job: ProductJob }) {
+  return (
+    <div className="w-full bg-[#1f2329] rounded-lg px-4 py-4 flex flex-col gap-3">
+      {/* Job Name */}
+      <h3 className="text-[18px] font-medium text-[#f3f1eb]">{job.name}</h3>
+      
+      {/* Statement */}
+      <p className="text-[16px] text-[#bfbdb9] leading-relaxed">
+        {job.statement}
+      </p>
+      
+      {/* Metadata Row */}
+      <div className="flex flex-wrap gap-4 mt-2">
+        {job.userGroup && (
+          <div className="flex items-center gap-2">
+            <span className="text-[12px] font-mono text-[#7b7a79] uppercase">User:</span>
+            <span className="text-[14px] text-[#f3f1eb] bg-[#262b33] px-2 py-1 rounded">
+              {job.userGroup}
+            </span>
+          </div>
+        )}
+        {job.frequency && (
+          <div className="flex items-center gap-2">
+            <span className="text-[12px] font-mono text-[#7b7a79] uppercase">Frequency:</span>
+            <span className="text-[14px] text-[#f3f1eb] bg-[#262b33] px-2 py-1 rounded">
+              {job.frequency}
+            </span>
+          </div>
+        )}
+        {job.level && (
+          <div className="flex items-center gap-2">
+            <span className="text-[12px] font-mono text-[#7b7a79] uppercase">Level:</span>
+            <span className="text-[14px] text-[#f3f1eb] bg-[#262b33] px-2 py-1 rounded">
+              {job.level}
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Core Job Card component - displays core job details with expandable error statements
+function CoreJobCard({ job }: { job: CoreJob }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const hasErrors = job.errorStatements && job.errorStatements.length > 0;
+  
+  return (
+    <div className="w-full bg-[#1f2329] rounded-lg px-4 py-4 flex flex-col gap-3">
+      {/* Header with Job Name and Error Count */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-[18px] font-medium text-[#f3f1eb]">{job.name}</h3>
+        {hasErrors && (
+          <button 
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="flex items-center gap-2 text-[14px] font-mono text-[#fdff98] hover:opacity-80 transition-opacity"
+          >
+            <span className="px-2 py-1 bg-[#3c465a] rounded-full">
+              {job.errorStatements.length} Need{job.errorStatements.length !== 1 ? 's' : ''}
+            </span>
+            <ChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+          </button>
+        )}
+      </div>
+      
+      {/* Statement */}
+      <p className="text-[16px] text-[#bfbdb9] leading-relaxed">
+        {job.statement}
+      </p>
+      
+      {/* Description if available */}
+      {job.description && (
+        <p className="text-[14px] text-[#7b7a79] italic">
+          {job.description}
+        </p>
+      )}
+      
+      {/* Expandable Needs Section */}
+      {isExpanded && hasErrors && (
+        <div className="mt-4 pt-4 border-t border-[#262b33] flex flex-col gap-3">
+          <span className="text-[14px] font-mono text-[#8a8f98] uppercase">Related Needs</span>
+          {job.errorStatements.map((error, index) => (
+            <div key={index} className="bg-[#262b33] rounded-lg px-4 py-3 flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-1 bg-[#3c465a] rounded text-[11px] font-mono text-[#fdff98] uppercase">
+                  {error.category}
+                </span>
+              </div>
+              <p className="text-[14px] text-[#f3f1eb] leading-relaxed">
+                {error.statement}
+              </p>
+              {(error.kpiName || error.kpiUnit) && (
+                <div className="flex items-center gap-4 text-[12px] text-[#7b7a79]">
+                  <span className="font-mono uppercase">KPI:</span>
+                  <span className="text-[#bfbdb9]">{error.kpiName} {error.kpiUnit && `(${error.kpiUnit})`}</span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
