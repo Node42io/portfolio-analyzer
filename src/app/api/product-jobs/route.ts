@@ -62,7 +62,7 @@ export async function GET(request: Request) {
     const category = searchParams.get("category");
 
     let query = "";
-    let params: Record<string, string> = { commodityId };
+    const params: Record<string, string> = { commodityId };
 
     if (category) {
       // Get jobs for a specific category

@@ -61,23 +61,32 @@ export function Header({
       {mobileMenuOpen && (
         <div className="lg:hidden absolute top-16 left-0 right-0 bg-[rgba(14,14,15,0.98)] border-b border-[rgba(255,255,255,0.1)]">
           <nav className="flex flex-col p-4 gap-2">
-            {navigationItems.map((item) => (
-              <Link
-                key={item.id}
-                href={item.href}
-                onClick={() => setMobileMenuOpen(false)}
-                className={`
-                  px-3 py-2
-                  text-sm uppercase tracking-wide font-mono
-                  ${item.isActive 
-                    ? "bg-[#fdff98] text-[#141416]" 
-                    : "text-white"
-                  }
-                `}
-              >
-                {item.label}
-              </Link>
-            ))}
+            {navigationItems.map((item) => 
+              item.disabled ? (
+                <span
+                  key={item.id}
+                  className="px-3 py-2 text-sm uppercase tracking-wide font-mono text-[var(--text-muted)] opacity-40 cursor-not-allowed"
+                >
+                  {item.label}
+                </span>
+              ) : (
+                <Link
+                  key={item.id}
+                  href={item.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`
+                    px-3 py-2
+                    text-sm uppercase tracking-wide font-mono
+                    ${item.isActive 
+                      ? "bg-[#fdff98] text-[#141416]" 
+                      : "text-white"
+                    }
+                  `}
+                >
+                  {item.label}
+                </Link>
+              )
+            )}
           </nav>
           {/* Mobile User Info */}
           <div className="px-4 pb-4 border-t border-[rgba(255,255,255,0.1)] pt-4">
@@ -110,6 +119,24 @@ function Logo() {
 
 // Individual navigation item with icon support
 function NavItem({ item }: { item: NavigationItem }) {
+  // Disabled items are greyed out and not clickable
+  if (item.disabled) {
+    return (
+      <span
+        className="
+          flex items-center gap-1
+          px-2 py-1
+          text-xs xl:text-sm uppercase tracking-wide font-mono
+          whitespace-nowrap
+          text-[var(--text-muted)] opacity-40 cursor-not-allowed
+        "
+        title="Coming soon"
+      >
+        {item.label}
+      </span>
+    );
+  }
+
   return (
     <Link
       href={item.href}

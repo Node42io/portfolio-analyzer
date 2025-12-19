@@ -8,7 +8,7 @@ import { PillTabs } from "@/components/ui";
 import { navigationItems } from "@/lib/constants";
 import { Product } from "@/types/customer";
 import { 
-  ArrowLeft, Store, Box, ArrowLeftRight, ChevronDown, 
+  ArrowLeft, Store, ArrowLeftRight, ChevronDown, 
   Mic, Loader2, LayoutGrid
 } from "lucide-react";
 

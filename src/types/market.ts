@@ -72,6 +72,7 @@ export interface NavigationItem {
   label: string;
   href: string;
   isActive?: boolean;
+  disabled?: boolean;
 }
 
 export interface SidebarTab {

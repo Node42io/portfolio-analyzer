@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     }
 
     let query: string;
-    let params: Record<string, unknown> = { companyName };
+    const params: Record<string, unknown> = { companyName };
 
     if (className) {
       // Fetch commodities for company filtered by class using correct relationships

@@ -31,7 +31,8 @@ export default function ProductMarketFitPage() {
   const [activeTab, setActiveTab] = useState<"past" | "saved">("past");
   const [markets, setMarkets] = useState<{ value: string; label: string }[]>([]);
   const [products, setProducts] = useState<{ value: string; label: string }[]>([]);
-  const [loading, setLoading] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_loading, _setLoading] = useState(false);
 
   // Mock past researches - in production this would come from an API
   const [pastResearches] = useState<PastResearch[]>([

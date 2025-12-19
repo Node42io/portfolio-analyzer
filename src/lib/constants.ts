@@ -1,12 +1,13 @@
 import { NavigationItem, SidebarTab } from "@/types/market";
 
 // Main navigation items for the header - matches Figma design
+// Only Customer Insights is currently active; other modules are disabled/greyed out
 export const navigationItems: NavigationItem[] = [
-  { id: "products", label: "Products", href: "/products", isActive: false },
-  { id: "markets", label: "Markets", href: "/markets", isActive: false },
-  { id: "pmf", label: "Product-Market Fit", href: "/product-market-fit", isActive: false },
-  { id: "radar", label: "Innovation Radar", href: "/innovation-radar", isActive: false },
-  { id: "customer-insights", label: "Customer Insights", href: "/customers", isActive: true },
+  { id: "products", label: "Products", href: "/products", isActive: false, disabled: true },
+  { id: "markets", label: "Markets", href: "/markets", isActive: false, disabled: true },
+  { id: "pmf", label: "Product-Market Fit", href: "/product-market-fit", isActive: false, disabled: true },
+  { id: "radar", label: "Innovation Radar", href: "/innovation-radar", isActive: false, disabled: true },
+  { id: "customer-insights", label: "Customer Insights", href: "/customers", isActive: true, disabled: false },
 ];
 
 // Sidebar tabs for market detail view

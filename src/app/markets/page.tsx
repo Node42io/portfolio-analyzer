@@ -674,16 +674,16 @@ function MarketCategory({
               )}
               {displayedMarkets.map((market, idx) => (
                 <MarketBubble 
-                  key={market.id} 
+                  key={`${market.id}-${idx}`} 
                   market={market}
-                  size={getBubbleSize(idx, markets.length)}
+                  size={getBubbleSize(idx)}
                 />
               ))}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-2 overflow-y-auto max-h-[350px]">
-              {markets.map(market => (
-                <MarketListItem key={market.id} market={market} />
+              {markets.map((market, idx) => (
+                <MarketListItem key={`${market.id}-${idx}`} market={market} />
               ))}
             </div>
           )}
@@ -707,7 +707,23 @@ interface MarketBubbleProps {
   size: number;
 }
 
+// Generate consistent pseudo-random number from string
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash);
+}
+
 function MarketBubble({ market, size }: MarketBubbleProps) {
+  // Use market name to generate consistent values
+  const hash = hashString(market.name);
+  const productCount = (hash % 50) + 10;
+  const fitPercent = ((hash >> 8) % 60) + 10;
+
   return (
     <Link href={`/markets/${market.id}`} className="group relative">
       {/* Bubble */}
@@ -720,8 +736,8 @@ function MarketBubble({ market, size }: MarketBubbleProps) {
       <div className="absolute left-[calc(100%+8px)] top-1/2 z-10 bg-[rgba(23,24,33,0.6)] backdrop-blur-[7px] border border-[rgba(255,255,255,0.2)] px-3 py-2 min-w-[120px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
         <p className="text-sm text-white mb-1">{market.name}</p>
         <div className="flex items-center gap-3 text-[10px] text-[#b9b9b9]">
-          <span className="font-mono bg-[#3c465a] px-1">{Math.floor(Math.random() * 50 + 10)}</span>
-          <span className="font-mono bg-[#3c465a] px-1">{Math.floor(Math.random() * 60 + 10)}%</span>
+          <span className="font-mono bg-[#3c465a] px-1">{productCount}</span>
+          <span className="font-mono bg-[#3c465a] px-1">{fitPercent}%</span>
         </div>
       </div>
     </Link>
@@ -730,6 +746,11 @@ function MarketBubble({ market, size }: MarketBubbleProps) {
 
 // Market list item component
 function MarketListItem({ market }: { market: Market }) {
+  // Use market name to generate consistent values
+  const hash = hashString(market.name);
+  const productCount = (hash % 50) + 10;
+  const fitPercent = ((hash >> 8) % 60) + 10;
+
   return (
     <Link 
       href={`/markets/${market.id}`}
@@ -738,8 +759,8 @@ function MarketListItem({ market }: { market: Market }) {
       <div>
         <p className="text-sm text-white">{market.name}</p>
         <div className="flex items-center gap-3 text-[10px] text-[#b9b9b9] mt-1">
-          <span className="font-mono bg-[#3c465a] px-1">{Math.floor(Math.random() * 50 + 10)}</span>
-          <span className="font-mono bg-[#3c465a] px-1">{Math.floor(Math.random() * 60 + 10)}%</span>
+          <span className="font-mono bg-[#3c465a] px-1">{productCount}</span>
+          <span className="font-mono bg-[#3c465a] px-1">{fitPercent}%</span>
         </div>
       </div>
     </Link>
@@ -789,7 +810,7 @@ function InnovationSidebar() {
 }
 
 // Helper to determine bubble size
-function getBubbleSize(index: number, total: number): number {
+function getBubbleSize(index: number): number {
   const sizes = [52, 48, 45, 42, 38, 34, 26, 24, 18];
   return sizes[index % sizes.length] || 24;
 }

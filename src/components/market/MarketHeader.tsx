@@ -13,6 +13,7 @@ const marketTypeLabels: Record<MarketType, string> = {
   UNDERSERVED: "UNDERSERVED MARKET",
   CONSUMPTION: "CONSUMPTION MARKET",
   NEW_MARKET: "NEW MARKET",
+  GROWTH: "GROWTH MARKET",
 };
 
 // Market header section with type label, name, job-to-be-done, and metrics
@@ -50,11 +51,11 @@ export function MarketHeader({ market }: MarketHeaderProps) {
 }
 
 // Individual metric display item
-function MetricItem({ label, value }: { label: string; value: string }) {
+function MetricItem({ label, value }: { label: string; value?: string }) {
   return (
     <div className="flex flex-col gap-2 md:gap-3">
       <p className="text-label text-[#b9b9b9] text-xs md:text-sm">{label}</p>
-      <p className="text-sm md:text-base text-white font-medium">{value}</p>
+      <p className="text-sm md:text-base text-white font-medium">{value || "—"}</p>
     </div>
   );
 }
