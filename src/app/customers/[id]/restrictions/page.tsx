@@ -4,17 +4,16 @@ import { useState, useEffect } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Header } from "@/components/layout";
-import { SeverityBadge, PillTabs, TabNavigation } from "@/components/ui";
+import { SeverityBadge, PillTabs, TabNavigation, RecordingOverlay, RecordButton } from "@/components/ui";
 import { navigationItems } from "@/lib/constants";
 import { ProductConstraint, ConstraintCategory, CONSTRAINT_CATEGORIES } from "@/types/customer";
-import { ArrowLeft, Store, Box, ArrowLeftRight, LayoutGrid, ChevronDown, Mic, Loader2, AlertCircle, X } from "lucide-react";
+import { ArrowLeft, Store, Box, ArrowLeftRight, LayoutGrid, ChevronDown, Loader2, AlertCircle, X } from "lucide-react";
 import { Product } from "@/types/customer";
 
 // Map customer IDs to display names
 const customerNames: Record<string, string> = {
-  "danone": "Danone",
-  "rugenwalder": "Rügenwalder Mühle",
   "bechtel": "Privatmolkerei Bechtel",
+  "welfen-gymnasium": "Welfen Gymnasium",
 };
 
 // Product Restrictions page - displays constraints table for a product/market combination
@@ -40,6 +39,10 @@ export default function RestrictionsPage() {
   const [selectedProduct, setSelectedProduct] = useState<string>(initialProductId);
   const [productDropdownOpen, setProductDropdownOpen] = useState(false);
   const [productSearch, setProductSearch] = useState("");
+
+  // Recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
 
   // Fetch products filtered by commodity on mount
   useEffect(() => {
@@ -137,7 +140,7 @@ export default function RestrictionsPage() {
     { id: "features", label: "Features Levels" },
     { id: "needs", label: "Market Needs" },
     { id: "restrictions", label: "Product Restrictions" },
-    { id: "fit", label: "Product/Market fit" },
+    { id: "fit", label: "Product/Market fit", disabled: true },
   ];
 
   // Handle view change - navigate to different pages
@@ -189,15 +192,15 @@ export default function RestrictionsPage() {
 
           {/* Selection Row with View Tabs */}
           <div className="flex items-end justify-between pb-4 border-b-2 border-[var(--border-default)]">
-            {/* Market, Product Type, and Product Display */}
+            {/* Product Type, Market, and Product Display */}
             <div className="flex items-center gap-2">
-              {/* Market Display - Fixed, greyed out */}
-              <div className="flex flex-col gap-2 opacity-50">
-                <span className="text-label text-[var(--text-labels)] uppercase pl-1">Market</span>
-                <div className="flex items-center gap-2 px-3 py-2 bg-[var(--surface-disabled)] rounded-[var(--radius-md)] cursor-not-allowed">
-                  <Store className="w-4 h-4 text-[var(--text-muted)]" />
-                  <span className="text-base font-medium text-[var(--text-muted)]">
-                    {marketName ? decodeURIComponent(marketName) : "—"}
+              {/* Product Type Display */}
+              <div className="flex flex-col gap-2">
+                <span className="text-label text-[var(--text-labels)] uppercase pl-1">Product Type</span>
+                <div className="flex items-center gap-2 px-3 py-2 bg-[#262b33] rounded-[var(--radius-md)] border border-[#4f5358]">
+                  <LayoutGrid className="w-4 h-4 text-[#bfbdb9]" />
+                  <span className="text-base font-medium text-[#bfbdb9]">
+                    {commodityName ? decodeURIComponent(commodityName) : "—"}
                   </span>
                 </div>
               </div>
@@ -207,13 +210,13 @@ export default function RestrictionsPage() {
                 <ArrowLeftRight className="w-6 h-6 text-[var(--text-primary)]" />
               </div>
 
-              {/* Product Type Display - Fixed, greyed out */}
+              {/* Market Display - Fixed, greyed out */}
               <div className="flex flex-col gap-2 opacity-50">
-                <span className="text-label text-[var(--text-labels)] uppercase pl-1">Product Type</span>
+                <span className="text-label text-[var(--text-labels)] uppercase pl-1">Market</span>
                 <div className="flex items-center gap-2 px-3 py-2 bg-[var(--surface-disabled)] rounded-[var(--radius-md)] cursor-not-allowed">
-                  <LayoutGrid className="w-4 h-4 text-[var(--text-muted)]" />
+                  <Store className="w-4 h-4 text-[var(--text-muted)]" />
                   <span className="text-base font-medium text-[var(--text-muted)]">
-                    {commodityName ? decodeURIComponent(commodityName) : "—"}
+                    {marketName ? decodeURIComponent(marketName) : "—"}
                   </span>
                 </div>
               </div>
@@ -296,10 +299,10 @@ export default function RestrictionsPage() {
                 activeTab={activeView}
                 onTabChange={handleViewChange}
               />
-              <button className="flex items-center gap-2 px-4 py-3 bg-[var(--accent-primary)] text-[var(--text-dark)] rounded-full font-medium hover:opacity-90 transition-opacity">
-                <Mic className="w-4 h-4" />
-                Record Session
-              </button>
+              <RecordButton 
+                isRecording={isRecording} 
+                onClick={() => setIsRecording(!isRecording)} 
+              />
             </div>
           </div>
         </div>
@@ -357,6 +360,17 @@ export default function RestrictionsPage() {
           </div>
         )}
       </main>
+
+      {/* Recording Overlay */}
+      <RecordingOverlay
+        isRecording={isRecording}
+        isPaused={isPaused}
+        onPause={() => setIsPaused(!isPaused)}
+        onStop={() => {
+          setIsRecording(false);
+          setIsPaused(false);
+        }}
+      />
     </div>
   );
 }

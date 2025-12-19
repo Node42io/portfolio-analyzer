@@ -4,19 +4,18 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Header } from "@/components/layout";
-import { PillTabs } from "@/components/ui";
+import { PillTabs, RecordingOverlay, RecordButton } from "@/components/ui";
 import { navigationItems } from "@/lib/constants";
 import { Product } from "@/types/customer";
 import { 
   ArrowLeft, Store, ArrowLeftRight, ChevronDown, 
-  Mic, Loader2, LayoutGrid, Target
+  Loader2, LayoutGrid, Target, Mic
 } from "lucide-react";
 
 // Map customer IDs to display names
 const customerNames: Record<string, string> = {
-  "danone": "Danone",
-  "rugenwalder": "Rügenwalder Mühle",
   "bechtel": "Privatmolkerei Bechtel",
+  "welfen-gymnasium": "Welfen Gymnasium",
 };
 
 // Step with error statements (market needs)
@@ -79,7 +78,7 @@ export default function MarketNeedsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState("needs");
-  const [activeTab, setActiveTab] = useState<"job-steps" | "product-specific" | "core-market">("job-steps");
+  const [activeTab, setActiveTab] = useState<"job-steps" | "product-specific" | "core-market">("core-market");
   const [selectedStepOrder, setSelectedStepOrder] = useState<number | null>(1); // Default to first step
   const [coreFunctionalJob, setCoreFunctionalJob] = useState("");
   
@@ -99,6 +98,10 @@ export default function MarketNeedsPage() {
   const [selectedProduct, setSelectedProduct] = useState<string>(initialProduct);
   const [productDropdownOpen, setProductDropdownOpen] = useState(false);
   const [productSearch, setProductSearch] = useState("");
+  
+  // Recording state for live transcript
+  const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
 
   // Fetch products filtered by commodity on mount
   useEffect(() => {
@@ -174,7 +177,7 @@ export default function MarketNeedsPage() {
     { id: "features", label: "Features Levels" },
     { id: "needs", label: "Market Needs" },
     { id: "restrictions", label: "Product Restrictions" },
-    { id: "fit", label: "Product/Market fit" },
+    { id: "fit", label: "Product/Market fit", disabled: true },
   ];
 
   // Handle view change - navigate to different pages
@@ -218,8 +221,24 @@ export default function MarketNeedsPage() {
 
           {/* Selection Row with View Tabs */}
           <div className="flex items-end justify-between pb-4 border-b-2 border-[#262b33]">
-            {/* Market and Product Display */}
+            {/* Product Type, Market and Product Display */}
             <div className="flex items-center gap-2">
+              {/* Product Type Display */}
+              <div className="flex flex-col gap-2">
+                <span className="text-[16px] font-mono text-[#7b7a79] uppercase pl-1">Product Type</span>
+                <div className="flex items-center gap-2 px-3 py-2 bg-[#262b33] rounded-2xl border border-[#4f5358]">
+                  <LayoutGrid className="w-4 h-4 text-[#bfbdb9]" />
+                  <span className="text-[16px] font-medium text-[#bfbdb9]">
+                    {commodityName ? decodeURIComponent(commodityName) : "—"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Arrow Separator */}
+              <div className="flex items-center pt-8">
+                <ArrowLeftRight className="w-6 h-6 text-[#f3f1eb]" />
+              </div>
+
               {/* Market Display */}
               <div className="flex flex-col gap-2">
                 <span className="text-[16px] font-mono text-[#7b7a79] uppercase pl-1">Market</span>
@@ -295,21 +314,30 @@ export default function MarketNeedsPage() {
                 activeTab={activeView}
                 onTabChange={handleViewChange}
               />
-              <button className="flex items-center gap-1 px-4 py-1 bg-[#fdff98] text-[#262b33] rounded-full font-normal hover:opacity-90 transition-opacity h-[45px]">
-                <Mic className="w-4 h-4" />
-                Record Session
-              </button>
+              <RecordButton 
+                isRecording={isRecording} 
+                onClick={() => {
+                  setIsRecording(!isRecording);
+                  setIsPaused(false);
+                }} 
+              />
             </div>
           </div>
         </div>
 
         {/* Content Section - Title, Description, Core Job */}
         <div className="flex gap-4 mb-4">
-          {/* Left Section - Title and Description */}
+          {/* Left Section - Title and Description - changes based on active tab */}
           <div className="flex flex-col gap-4 w-[612px]">
-            <h2 className="text-[24px] font-medium text-[#f3f1eb]">Market Needs</h2>
+            <h2 className="text-[24px] font-medium text-[#f3f1eb]">
+              {activeTab === "core-market" && "Core Market Needs"}
+              {activeTab === "job-steps" && "Job Steps"}
+              {activeTab === "product-specific" && "Product Specific Needs"}
+            </h2>
             <p className="text-[16px] text-[#f3f1eb]">
-              Market needs represent imperfections in the job map - things that can go wrong when customers try to accomplish their goals.
+              {activeTab === "core-market" && "Market needs represent imperfections in the job map - things that can go wrong when customers try to accomplish their goals."}
+              {activeTab === "job-steps" && "Job steps represent the sequential phases customers go through to accomplish their core functional job."}
+              {activeTab === "product-specific" && "Product specific needs are jobs that come with the solution - tasks required to acquire, use, and maintain the product."}
             </p>
           </div>
 
@@ -324,8 +352,18 @@ export default function MarketNeedsPage() {
           </div>
         </div>
 
-        {/* Needs Type Tabs - Job Steps, Product Specific Needs, Core Market Needs */}
+        {/* Needs Type Tabs - Core Market Needs, Job Steps, Product Specific Needs */}
         <div className="flex border-b border-[#262b33] mb-4">
+          <button
+            onClick={() => setActiveTab("core-market")}
+            className={`px-4 h-[42px] flex items-center justify-center transition-colors ${
+              activeTab === "core-market"
+                ? "border-b-2 border-[#fdff98] text-[#fdff98]"
+                : "border-b border-[#4f5358] text-[#f3f1eb]"
+            }`}
+          >
+            <span className="text-[20px] font-medium">Core Market Needs</span>
+          </button>
           <button
             onClick={() => setActiveTab("job-steps")}
             className={`px-4 h-[42px] flex items-center justify-center transition-colors ${
@@ -346,16 +384,6 @@ export default function MarketNeedsPage() {
           >
             <span className="text-[20px] font-medium">Product Specific Needs</span>
           </button>
-          <button
-            onClick={() => setActiveTab("core-market")}
-            className={`px-4 h-[42px] flex items-center justify-center transition-colors ${
-              activeTab === "core-market"
-                ? "border-b-2 border-[#fdff98] text-[#fdff98]"
-                : "border-b border-[#4f5358] text-[#f3f1eb]"
-            }`}
-          >
-            <span className="text-[20px] font-medium">Core Market Needs</span>
-          </button>
         </div>
 
         {/* Subtitle */}
@@ -369,43 +397,54 @@ export default function MarketNeedsPage() {
             </div>
           ) : (
             <div className="flex flex-col gap-3">
-              {/* Step Number Line with connecting lines */}
-              <div className="flex items-center gap-0 overflow-x-auto pb-2" ref={scrollContainerRef}>
-                {/* Leading line */}
-                <div className="w-[86px] h-[1px] bg-[#4f5358] shrink-0" />
-                
-                {steps.map((step, index) => (
-                  <div key={step.order} className="flex items-center shrink-0">
-                    {/* Step Number Badge */}
-                    <button
-                      onClick={() => setSelectedStepOrder(selectedStepOrder === step.order ? null : step.order)}
-                      className={`w-[44px] h-[32px] flex items-center justify-center rounded-full font-mono text-[16px] transition-colors ${
-                        selectedStepOrder === step.order
-                          ? "bg-[#fdff98] text-[#262b33]"
-                          : "bg-[#262b33] text-white hover:bg-[#3c465a]"
-                      }`}
-                    >
-                      {step.order}
-                    </button>
+              {/* Single scrollable container for step numbers and cards */}
+              <div className="overflow-x-auto pb-4" ref={scrollContainerRef}>
+                <div className="inline-flex flex-col">
+                  {/* Step number row with connecting line */}
+                  <div className="relative flex mb-3">
+                    {/* Continuous line behind all badges */}
+                    <div 
+                      className="absolute top-1/2 h-[1px] bg-[#4f5358]" 
+                      style={{ 
+                        left: `${150}px`, 
+                        right: `${150}px`
+                      }} 
+                    />
                     
-                    {/* Connecting line (not after last step) */}
-                    {index < steps.length - 1 && (
-                      <div className="w-[181px] h-[1px] bg-[#4f5358]" />
-                    )}
+                    {/* Step badges - aligned with card centers */}
+                    {steps.map((step, index) => (
+                      <div 
+                        key={step.order} 
+                        className="flex items-center justify-center shrink-0"
+                        style={{ width: '300px', marginRight: index < steps.length - 1 ? '8px' : '0' }}
+                      >
+                        <button
+                          onClick={() => setSelectedStepOrder(selectedStepOrder === step.order ? null : step.order)}
+                          className={`w-[44px] h-[32px] flex items-center justify-center rounded-full font-mono text-[16px] transition-colors shrink-0 relative z-10 ${
+                            selectedStepOrder === step.order
+                              ? "bg-[#fdff98] text-[#262b33]"
+                              : "bg-[#262b33] text-white hover:bg-[#3c465a]"
+                          }`}
+                        >
+                          {step.order}
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-
-              {/* Step Cards Row */}
-              <div className="flex gap-2 overflow-x-auto pb-4">
-                {steps.map((step) => (
-                  <StepCard
-                    key={step.order}
-                    step={step}
-                    isSelected={selectedStepOrder === step.order}
-                    onClick={() => setSelectedStepOrder(selectedStepOrder === step.order ? null : step.order)}
-                  />
-                ))}
+                  
+                  {/* Step cards row */}
+                  <div className="flex gap-2">
+                    {steps.map((step) => (
+                      <div key={step.order} className="shrink-0 w-[300px]">
+                        <StepCard
+                          step={step}
+                          isSelected={selectedStepOrder === step.order}
+                          onClick={() => setSelectedStepOrder(selectedStepOrder === step.order ? null : step.order)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               {/* Selected Step Header with Needs Count */}
@@ -542,6 +581,17 @@ export default function MarketNeedsPage() {
           )
         )}
       </main>
+      
+      {/* Live Transcript Recording Overlay */}
+      <RecordingOverlay 
+        isRecording={isRecording}
+        onStop={() => {
+          setIsRecording(false);
+          setIsPaused(false);
+        }}
+        onPause={() => setIsPaused(!isPaused)}
+        isPaused={isPaused}
+      />
     </div>
   );
 }
@@ -559,24 +609,24 @@ function StepCard({
   return (
     <button
       onClick={onClick}
-      className={`w-[239px] h-[211px] flex flex-col justify-between px-3 py-4 rounded-lg transition-all shrink-0 ${
+      className={`w-full h-[211px] flex flex-col justify-between px-3 py-4 rounded-lg transition-all overflow-hidden ${
         isSelected 
           ? "bg-[#1f2329] border border-[#fdff98]" 
           : "bg-[#1f2329] border border-transparent hover:border-[#262b33]"
       }`}
     >
       {/* Top Section - Title and Description */}
-      <div className="flex flex-col gap-4 pb-4 border-b border-[#262b33]">
-        <h3 className="text-[20px] font-medium text-[#f3f1eb] text-left">{step.name}</h3>
-        <p className="text-[14px] text-[#f3f1eb] text-left leading-relaxed line-clamp-4">
+      <div className="flex flex-col gap-2 pb-3 border-b border-[#262b33] overflow-hidden flex-1 min-h-0">
+        <h3 className="text-[18px] font-medium text-[#f3f1eb] text-left line-clamp-2">{step.name}</h3>
+        <p className="text-[14px] text-[#bfbdb9] text-left leading-relaxed line-clamp-4 overflow-hidden">
           {step.description}
         </p>
       </div>
 
       {/* Bottom Section - Market Needs count */}
-      <div className="flex items-center gap-2 pt-2">
-        <span className="text-[16px] font-mono text-[#8a8f98] uppercase">Market Needs</span>
-        <span className="px-2 py-1 bg-[#3c465a] rounded-full text-[14px] font-mono text-[#fdff98]">
+      <div className="flex items-center gap-2 pt-2 shrink-0">
+        <span className="text-[14px] font-mono text-[#8a8f98] uppercase">Needs</span>
+        <span className="px-2 py-1 bg-[#3c465a] rounded-full text-[12px] font-mono text-[#fdff98]">
           {step.needsCount}
         </span>
       </div>

@@ -67,7 +67,7 @@ export async function GET(request: Request) {
 
     // Group jobs by category
     const jobsByCategory: Record<string, Array<{
-      name: string;
+      name: string; 
       statement: string;
       description: string;
       level: string;
@@ -88,8 +88,8 @@ export async function GET(request: Request) {
         jobsByCategory[category] = [];
       }
       jobsByCategory[category].push({
-        name: job.name,
-        statement: job.statement || "",
+          name: job.name,
+          statement: job.statement || "",
         description: job.description || "",
         level: toValue(job.level),
         useContext: job.use_context || "",
@@ -104,7 +104,7 @@ export async function GET(request: Request) {
       categoryCounts[cat] = jobsByCategory[cat]?.length || 0;
     }
 
-    return NextResponse.json({
+    return NextResponse.json({ 
       jobsByCategory,
       categoryCounts,
       totalJobs: productJobs.length,

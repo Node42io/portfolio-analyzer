@@ -21,9 +21,8 @@ interface CommodityOption {
 
 // Map customer IDs to display names
 const customerNames: Record<string, string> = {
-  "danone": "Danone",
-  "rugenwalder": "Rügenwalder Mühle",
   "bechtel": "Privatmolkerei Bechtel",
+  "welfen-gymnasium": "Welfen Gymnasium",
 };
 
 // Customer detail page - select product type and market for analysis
@@ -52,19 +51,24 @@ export default function CustomerDetailPage() {
   const [productDropdownOpen, setProductDropdownOpen] = useState(false);
   const [commodityDropdownOpen, setCommodityDropdownOpen] = useState(false);
 
-  // Fetch only commodities on mount - products and markets loaded after commodity selection
+  // Fetch commodities filtered by customer on mount - products and markets loaded after commodity selection
   useEffect(() => {
     async function fetchData() {
       try {
-        const commoditiesRes = await fetch("/api/commodities");
+        // Pass customerId to filter commodities per customer
+        const commoditiesRes = await fetch(`/api/commodities?customerId=${customerId}`);
 
         if (commoditiesRes.ok) {
           const data = await commoditiesRes.json();
           setCommodities(data.commodities || []);
         }
 
-        // Generate sample past sessions
-        setSessions(generateSampleSessions());
+        // Generate sample past sessions only for existing customers (not Welfen Gymnasium)
+        if (customerId !== "welfen-gymnasium") {
+          setSessions(generateSampleSessions());
+        } else {
+          setSessions([]);
+        }
       } catch (err) {
         console.error("Error fetching data:", err);
       } finally {
@@ -72,7 +76,7 @@ export default function CustomerDetailPage() {
       }
     }
     fetchData();
-  }, []);
+  }, [customerId]);
 
   // Fetch products AND markets when commodity (product type) is selected
   useEffect(() => {

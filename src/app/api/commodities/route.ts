@@ -8,13 +8,22 @@ interface CommodityOption {
   commodityId: string;
 }
 
+// Customer-specific commodity mappings
+// Bechtel (dairy) only gets Filling Machinery
+// Welfen Gymnasium (school) only gets Fume Hoods and Freestanding lighting/power/data
+const CUSTOMER_COMMODITY_FILTER: Record<string, string[]> = {
+  "bechtel": ["23181501"], // Filling machinery
+  "welfen-gymnasium": ["56111801", "41103502"], // Freestanding lighting/power/data, Fume hoods
+};
+
 // API route to fetch UNSPSC Commodities (Product Types) from Neo4j
-// Returns commodities linked to products for the company
+// Returns commodities linked to products for the company, filtered by customer
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const companyId = searchParams.get("companyId");
     const productName = searchParams.get("productName");
+    const customerId = searchParams.get("customerId");
 
     let query = "";
     let params = {};
@@ -61,11 +70,17 @@ export async function GET(request: Request) {
     }>(query, params);
 
     // Transform results to CommodityOption interface
-    const commodities: CommodityOption[] = results.map((record) => ({
+    let commodities: CommodityOption[] = results.map((record) => ({
       id: record.commodityId,
       name: record.name || `Commodity ${record.commodityId}`,
       commodityId: record.commodityId,
     }));
+
+    // Filter by customer-specific commodities if customerId is provided
+    if (customerId && CUSTOMER_COMMODITY_FILTER[customerId]) {
+      const allowedCommodities = CUSTOMER_COMMODITY_FILTER[customerId];
+      commodities = commodities.filter(c => allowedCommodities.includes(c.commodityId));
+    }
 
     return NextResponse.json({ commodities });
   } catch (error) {

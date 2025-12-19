@@ -54,7 +54,7 @@ export function TabNavigation({ tabs, activeTab, onTabChange, className = "" }: 
 
 // Pill-style tab navigation for view switcher
 interface PillTabsProps {
-  tabs: { id: string; label: string }[];
+  tabs: { id: string; label: string; disabled?: boolean }[];
   activeTab: string;
   onTabChange: (tabId: string) => void;
   className?: string;
@@ -65,16 +65,20 @@ export function PillTabs({ tabs, activeTab, onTabChange, className = "" }: PillT
     <div className={`flex items-center gap-3 p-2 bg-[var(--secondary-default)] rounded-full ${className}`}>
       {tabs.map((tab) => {
         const isActive = tab.id === activeTab;
+        const isDisabled = tab.disabled === true;
         return (
           <button
             key={tab.id}
-            onClick={() => onTabChange(tab.id)}
+            onClick={() => !isDisabled && onTabChange(tab.id)}
+            disabled={isDisabled}
             className={`
               px-3 py-3 rounded-full
               text-base transition-colors duration-200
-              ${isActive 
-                ? "bg-[var(--secondary-400)] text-[var(--accent-primary)]" 
-                : "text-[var(--text-primary)] hover:text-[var(--accent-primary)]"
+              ${isDisabled
+                ? "text-[var(--text-muted)] opacity-50 cursor-not-allowed"
+                : isActive 
+                  ? "bg-[var(--secondary-400)] text-[var(--accent-primary)]" 
+                  : "text-[var(--text-primary)] hover:text-[var(--accent-primary)]"
               }
             `}
           >

@@ -4,19 +4,18 @@ import { useState, useEffect } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Header } from "@/components/layout";
-import { PillTabs } from "@/components/ui";
+import { PillTabs, RecordingOverlay, RecordButton } from "@/components/ui";
 import { navigationItems } from "@/lib/constants";
 import { 
   ArrowLeft, Store, Box, ArrowLeftRight, LayoutGrid, ChevronDown, 
-  Mic, Loader2, Search, Eye, Sparkles
+  Loader2, Search, Eye, Sparkles
 } from "lucide-react";
 import { Product } from "@/types/customer";
 
 // Map customer IDs to display names
 const customerNames: Record<string, string> = {
-  "danone": "Danone",
-  "rugenwalder": "Rügenwalder Mühle",
   "bechtel": "Privatmolkerei Bechtel",
+  "welfen-gymnasium": "Welfen Gymnasium",
 };
 
 // Feature with Kano ranges
@@ -33,6 +32,11 @@ interface KanoFeature {
   isNewLearning?: boolean;
   updatedColumn?: "reverse" | "must_be" | "one_dimensional" | "attractive";
   previousValue?: string;
+  // Original values for baseline comparison
+  originalReverse?: string;
+  originalMustBe?: string;
+  originalOneDimensional?: string;
+  originalAttractive?: string;
 }
 
 // Features Levels page - displays market-specific Kano ranges in a table
@@ -59,9 +63,15 @@ export default function FeaturesLevelsPage() {
   const [productDropdownOpen, setProductDropdownOpen] = useState(false);
   const [productSearch, setProductSearch] = useState("");
 
-  // Mock date for previous sessions
-  const mockDate = "13.12.2025";
-  const previousDates = ["25.11.2025", "18.11.2025"];
+  // Date tab selection - "default" shows baseline, dates show learnings
+  const [selectedDateTab, setSelectedDateTab] = useState<string>("default");
+  
+  // Session dates with learnings
+  const sessionDates = ["13.12.2025", "25.11.2025", "18.11.2025"];
+
+  // Recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
 
   // Fetch products filtered by commodity on mount
   useEffect(() => {
@@ -102,38 +112,28 @@ export default function FeaturesLevelsPage() {
         const response = await fetch(`/api/kano-ranges?marketName=${encodeURIComponent(marketName)}`);
         if (response.ok) {
           const data = await response.json();
-          // Transform and add mock "new learning" updates to some features
-          // Mark selected features as "new learning" with increased values
-          const featuresWithUpdates = (data.features || []).map((feature: KanoFeature, index: number) => {
-            // Mark every 4th feature starting from index 1 as "new learning"
+          // Store baseline features - mark some with learning metadata for date tabs
+          const featuresWithLearningMetadata = (data.features || []).map((feature: KanoFeature, index: number) => {
+            // Mark every 4th feature starting from index 1 as having a "new learning" for 13.12.2025
             if ((index === 1 || index === 5 || index === 9 || index === 13) && index < 15) {
               const columns = ["reverse", "must_be", "one_dimensional", "attractive"] as const;
               const updatedColumn = columns[index % 4];
               
-              // Create new feature with increased value in the updated column
-              const updatedFeature = { ...feature, isNewLearning: true, updatedColumn };
-              
-              // Increase the value by 5% for the updated column
-              switch (updatedColumn) {
-                case "reverse":
-                  updatedFeature.reverseRange = increaseNumericValue(feature.reverseRange);
-                  break;
-                case "must_be":
-                  updatedFeature.mustBeRange = increaseNumericValue(feature.mustBeRange);
-                  break;
-                case "one_dimensional":
-                  updatedFeature.oneDimensionalRange = increaseNumericValue(feature.oneDimensionalRange);
-                  break;
-                case "attractive":
-                  updatedFeature.attractiveRange = increaseNumericValue(feature.attractiveRange);
-                  break;
-              }
-              
-              return updatedFeature;
+              // Store the original values and mark the updated column
+              return { 
+                ...feature, 
+                isNewLearning: true, 
+                updatedColumn,
+                // Store original value for the column that will be updated
+                originalReverse: feature.reverseRange,
+                originalMustBe: feature.mustBeRange,
+                originalOneDimensional: feature.oneDimensionalRange,
+                originalAttractive: feature.attractiveRange,
+              };
             }
             return feature;
           });
-          setFeatures(featuresWithUpdates);
+          setFeatures(featuresWithLearningMetadata);
         }
       } catch (err) {
         console.error("Error fetching Kano ranges:", err);
@@ -144,8 +144,43 @@ export default function FeaturesLevelsPage() {
     fetchKanoRanges();
   }, [marketName]);
 
-  // Filter features based on search
-  const filteredFeatures = features.filter((feature) =>
+  // Get features to display based on selected date tab
+  const getDisplayFeatures = () => {
+    if (selectedDateTab === "default") {
+      // Show baseline values without any highlights
+      return features.map(f => ({ ...f, showLearning: false }));
+    } else if (selectedDateTab === "13.12.2025") {
+      // Show features with learnings highlighted and values updated
+      return features.map(feature => {
+        if (feature.isNewLearning && feature.updatedColumn) {
+          const updatedFeature = { ...feature, showLearning: true };
+          // Apply the 5% increase for the learning
+          switch (feature.updatedColumn) {
+            case "reverse":
+              updatedFeature.reverseRange = increaseNumericValue(feature.originalReverse || feature.reverseRange);
+              break;
+            case "must_be":
+              updatedFeature.mustBeRange = increaseNumericValue(feature.originalMustBe || feature.mustBeRange);
+              break;
+            case "one_dimensional":
+              updatedFeature.oneDimensionalRange = increaseNumericValue(feature.originalOneDimensional || feature.oneDimensionalRange);
+              break;
+            case "attractive":
+              updatedFeature.attractiveRange = increaseNumericValue(feature.originalAttractive || feature.attractiveRange);
+              break;
+          }
+          return updatedFeature;
+        }
+        return { ...feature, showLearning: false };
+      });
+    }
+    // Other dates - show baseline without highlights (no learnings for those dates)
+    return features.map(f => ({ ...f, showLearning: false }));
+  };
+
+  // Get display features based on selected date tab, then filter by search
+  const displayFeatures = getDisplayFeatures();
+  const filteredFeatures = displayFeatures.filter((feature) =>
     feature.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -159,7 +194,7 @@ export default function FeaturesLevelsPage() {
     { id: "features", label: "Features Levels" },
     { id: "needs", label: "Market Needs" },
     { id: "restrictions", label: "Product Restrictions" },
-    { id: "fit", label: "Product/Market fit" },
+    { id: "fit", label: "Product/Market fit", disabled: true },
   ];
 
   // Handle view change - navigate to different pages
@@ -208,8 +243,24 @@ export default function FeaturesLevelsPage() {
 
           {/* Selection Row with View Tabs */}
           <div className="flex items-end justify-between pb-4 border-b-2 border-[var(--border-default)]">
-            {/* Market, Product Type, and Product Display */}
+            {/* Product Type, Market, and Product Display */}
             <div className="flex items-center gap-2">
+              {/* Product Type Display */}
+              <div className="flex flex-col gap-2">
+                <span className="text-label text-[var(--text-labels)] uppercase pl-1">Product Type</span>
+                <div className="flex items-center gap-2 px-3 py-2 bg-[#262b33] rounded-[var(--radius-md)] border border-[#4f5358]">
+                  <LayoutGrid className="w-4 h-4 text-[#bfbdb9]" />
+                  <span className="text-base font-medium text-[#bfbdb9]">
+                    {commodityName ? decodeURIComponent(commodityName) : "—"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Arrow Separator */}
+              <div className="flex items-center pt-8">
+                <ArrowLeftRight className="w-6 h-6 text-[var(--text-primary)]" />
+              </div>
+
               {/* Market Display - Fixed */}
               <div className="flex flex-col gap-2 opacity-50">
                 <span className="text-label text-[var(--text-labels)] uppercase pl-1">Market</span>
@@ -287,10 +338,10 @@ export default function FeaturesLevelsPage() {
                 activeTab={activeView}
                 onTabChange={handleViewChange}
               />
-              <button className="flex items-center gap-2 px-4 py-3 bg-[var(--accent-primary)] text-[var(--text-dark)] rounded-full font-medium hover:opacity-90 transition-opacity">
-                <Mic className="w-4 h-4" />
-                Record Session
-              </button>
+              <RecordButton 
+                isRecording={isRecording} 
+                onClick={() => setIsRecording(!isRecording)} 
+              />
             </div>
           </div>
         </div>
@@ -338,19 +389,33 @@ export default function FeaturesLevelsPage() {
 
             {/* Column Headers Section */}
             <div className="flex-1 flex flex-col ml-4">
-              {/* Date Headers */}
+              {/* Date Headers - Clickable Tabs */}
               <div className="flex h-[45px] border border-[var(--border-default)]">
-                <div className="flex items-center gap-2 px-3 py-2 bg-[var(--accent-primary)]">
-                  <LayoutGrid className="w-4 h-4 text-[var(--text-dark)]" />
-                  <span className="text-base font-medium text-[var(--text-dark)]">Default</span>
-                </div>
-                <div className="flex items-center justify-center px-3 border-l border-[var(--border-default)]">
-                  <span className="text-base text-[#b9b9b9]">{mockDate}</span>
-                </div>
-                {previousDates.map((date, i) => (
-                  <div key={i} className="flex items-center justify-center px-3 border-l border-[var(--border-default)]">
-                    <span className="text-base text-[#b9b9b9]">{date}</span>
-                  </div>
+                <button
+                  onClick={() => setSelectedDateTab("default")}
+                  className={`flex items-center gap-2 px-3 py-2 transition-colors ${
+                    selectedDateTab === "default"
+                      ? "bg-[var(--accent-primary)]"
+                      : "bg-[var(--secondary-700)] hover:bg-[var(--secondary-400)]"
+                  }`}
+                >
+                  <LayoutGrid className={`w-4 h-4 ${selectedDateTab === "default" ? "text-[var(--text-dark)]" : "text-[#b9b9b9]"}`} />
+                  <span className={`text-base font-medium ${selectedDateTab === "default" ? "text-[var(--text-dark)]" : "text-[#b9b9b9]"}`}>Default</span>
+                </button>
+                {sessionDates.map((date, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setSelectedDateTab(date)}
+                    className={`flex items-center justify-center px-3 border-l border-[var(--border-default)] transition-colors ${
+                      selectedDateTab === date
+                        ? "bg-[var(--accent-primary)]"
+                        : "bg-[var(--secondary-700)] hover:bg-[var(--secondary-400)]"
+                    }`}
+                  >
+                    <span className={`text-base ${selectedDateTab === date ? "text-[var(--text-dark)] font-medium" : "text-[#b9b9b9]"}`}>
+                      {date}
+                    </span>
+                  </button>
                 ))}
               </div>
 
@@ -391,53 +456,63 @@ export default function FeaturesLevelsPage() {
           )}
         </div>
       </main>
+
+      {/* Recording Overlay */}
+      <RecordingOverlay
+        isRecording={isRecording}
+        isPaused={isPaused}
+        onPause={() => setIsPaused(!isPaused)}
+        onStop={() => {
+          setIsRecording(false);
+          setIsPaused(false);
+        }}
+      />
     </div>
   );
 }
 
 // Feature row component with Kano range cells
-function FeatureRow({ feature }: { feature: KanoFeature }) {
+function FeatureRow({ feature }: { feature: KanoFeature & { showLearning?: boolean } }) {
+  const showHighlight = feature.showLearning && feature.isNewLearning;
+  
   return (
     <div className="flex border-b border-[rgba(243,241,235,0.1)]">
       {/* Feature Name - left column */}
-      <div className="w-[320px] flex items-center px-4 py-4 bg-[#1b1e23] border-r border-[var(--border-default)]">
-        <span className="text-base text-[var(--neutral-white)]">{feature.name}</span>
+      <div className="w-[320px] shrink-0 flex items-start px-4 py-4 bg-[#1b1e23] border-r border-[var(--border-default)]">
+        <span className="text-base text-[var(--neutral-white)] leading-relaxed">{feature.name}</span>
       </div>
 
       {/* Kano Range Cells - with margin to match header */}
       <div className="flex-1 flex ml-4">
         <KanoCell 
           range={feature.reverseRange} 
-          isHighlighted={feature.isNewLearning && feature.updatedColumn === "reverse"}
+          isHighlighted={showHighlight && feature.updatedColumn === "reverse"}
         />
         <KanoCell 
           range={feature.mustBeRange} 
-          isHighlighted={feature.isNewLearning && feature.updatedColumn === "must_be"}
+          isHighlighted={showHighlight && feature.updatedColumn === "must_be"}
         />
         <KanoCell 
           range={feature.oneDimensionalRange} 
-          isHighlighted={feature.isNewLearning && feature.updatedColumn === "one_dimensional"}
+          isHighlighted={showHighlight && feature.updatedColumn === "one_dimensional"}
         />
         <KanoCell 
           range={feature.attractiveRange} 
-          isHighlighted={feature.isNewLearning && feature.updatedColumn === "attractive"}
+          isHighlighted={showHighlight && feature.updatedColumn === "attractive"}
         />
       </div>
     </div>
   );
 }
 
-// Kano cell component
+// Kano cell component - shows full text without truncation
 function KanoCell({ range, isHighlighted = false }: { range: string; isHighlighted?: boolean }) {
-  // Truncate for display
-  const displayText = range.length > 150 ? range.substring(0, 150) + "..." : range;
-  
   return (
     <div 
-      className={`flex-1 flex flex-col justify-between p-2 min-h-[100px] border-l border-[var(--border-default)] ${
+      className={`flex-1 flex flex-col p-3 min-h-[80px] border-l ${
         isHighlighted 
-          ? "bg-[var(--accent-primary)] bg-opacity-10 border-[var(--accent-primary)]" 
-          : "bg-[var(--secondary-700)]"
+          ? "bg-[var(--secondary-700)] border-2 border-[var(--accent-primary)]" 
+          : "bg-[var(--secondary-700)] border-[var(--border-default)]"
       }`}
     >
       {isHighlighted && (
@@ -446,8 +521,8 @@ function KanoCell({ range, isHighlighted = false }: { range: string; isHighlight
           <span className="text-xs text-[var(--accent-primary)] uppercase font-medium">New Learning</span>
         </div>
       )}
-      <p className={`text-sm ${isHighlighted ? "text-[var(--accent-primary)]" : "text-[var(--text-primary)]"}`}>
-        {displayText}
+      <p className={`text-sm leading-relaxed ${isHighlighted ? "text-[var(--accent-primary)]" : "text-[var(--text-primary)]"}`}>
+        {range}
       </p>
     </div>
   );

@@ -8,4 +8,5 @@ export { TabNavigation, PillTabs } from "./TabNavigation";
 export { Selector } from "./Selector";
 export { SearchInput } from "./SearchInput";
 export { SortButton, SortedByPill } from "./SortButton";
+export { RecordingOverlay, RecordButton } from "./RecordingOverlay";
 
