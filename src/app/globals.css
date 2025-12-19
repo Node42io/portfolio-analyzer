@@ -1,0 +1,126 @@
+@import "tailwindcss";
+
+/* Design System CSS Variables - Updated based on Figma */
+:root {
+  /* Background Colors */
+  --surface-page: #16181c;
+  --surface-default: #1b1e23;
+  --surface-card: rgba(20, 23, 27, 0.6);
+  --surface-card-inner: #111215;
+  --surface-header: rgba(255, 255, 255, 0.02);
+  --surface-disabled: #363739;
+  --surface-error: #d56f6f;
+  
+  /* Dark/Secondary Colors */
+  --secondary-default: #262b33;
+  --secondary-400: #4f5358;
+  --secondary-700: #1b1e23;
+  
+  /* Text Colors */
+  --text-primary: #f3f1eb;
+  --text-secondary: #b9b9b9;
+  --text-muted: #7b7a79;
+  --text-labels: #7b7a79;
+  --text-dark: #262b33;
+  --text-disabled: #7b7a79;
+  --text-nav-dark: #141416;
+  
+  /* Accent Colors */
+  --accent-primary: #fdff98;
+  --accent-primary-dark: #434532;
+  
+  /* Neutral/Light Gray */
+  --neutral-lightgray: #bfbdb9;
+  --neutral-lightgray-700: #7b7a79;
+  
+  /* Severity Colors */
+  --severity-critical: #d56f6f;
+  --severity-high: #d56f6f;
+  --severity-medium: #d5a96f;
+  --severity-low: #6fd59b;
+  
+  /* Border Colors */
+  --border-default: #262b33;
+  --border-subtle: rgba(255, 255, 255, 0.1);
+  --border-header: rgba(194, 196, 192, 0.2);
+  
+  /* Blur Effects */
+  --blur-card: 15px;
+  --blur-header: 10px;
+  
+  /* Border Radius */
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 56px;
+  
+  /* Font Families */
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  
+  /* Spacing */
+  --header-height: 64px;
+  --sidebar-width: 148px;
+}
+
+@theme inline {
+  --color-background: var(--surface-page);
+  --color-foreground: var(--text-primary);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* Base Styles */
+body {
+  background: var(--surface-page);
+  color: var(--text-primary);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  min-height: 100vh;
+}
+
+/* Utility Classes */
+.glass-card {
+  backdrop-filter: blur(var(--blur-card));
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+}
+
+.glass-header {
+  backdrop-filter: blur(var(--blur-header));
+  background: var(--surface-header);
+  border-bottom: 1px solid var(--border-header);
+}
+
+/* Typography Utilities */
+.text-label {
+  font-family: var(--font-mono), monospace;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.text-label-lg {
+  font-family: var(--font-mono), monospace;
+  font-size: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
